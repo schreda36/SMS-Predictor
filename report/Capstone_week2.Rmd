@@ -1,0 +1,204 @@
+---
+title: "Capstone Project Milestone Report"
+author: "Dan Schreck"
+date: "July 30, 2016"
+output: html_document
+---
+
+
+
+## Executive Summary
+
+The goal of the Capstone Project is to utilize skills acquired from the previous
+courses to create a Shiny App that accepts input text from the users and predicts
+potential next words. The predictive model uses a corpus which consists of samples 
+taken from three sources: news articles, blog, and twitter posts.
+
+This report will provide analysis for the first level data exploration that will 
+form the basis of our predictive model. Once our sample texts are obtained, we will
+perform several clean-up steps to pre-process the data (e.g. remove whitespace, 
+profanity, etc.). Using ngram tokenization we will review and plot the top 30 unigrams,
+bigrams and trigrams in order to get to know our data better.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("R.utils")
+library("RWeka")
+library("tm")
+library("SnowballC") 
+library("ggplot2")
+```
+
+## Obtaining Data
+First we'll need to obtain our data sources. 
+
+```{r}
+#setwd("../CAPSTONE/report")
+dir <- "data"
+
+#obtain data
+url  <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+fname <- "Coursera-SwiftKey.zip"
+fpath <- paste(dir, fname, sep="/")
+if (!file.exists(fpath)){
+      download.file(url, destfile=fpath, method="curl")
+}
+unzip(zipfile=fpath, exdir=dir)
+```
+
+## Basic Data Exploration
+Next, we'll want to perform simple data exploration to review the amount of data
+contained in our samples, such as file size in MBs, the number of words and lines,
+as well as the longest line.
+
+```{r}
+dir <- "data/sample"
+enFiles <- list.files(path=dir, recursive=F, pattern=".*en_.*.txt")
+if (!file.exists("./data/sample/summaryDF.RData")){
+      l <- lapply(paste(dir, enFiles, sep="/"),
+            function(fileIn) {
+            con <- file(fileIn, open="r")
+            fsize <- file.info(fileIn)[1]/1024/1024
+            testLine <- readLines(con)
+            nchar <- lapply(testLine, nchar)
+            maxchars <- which.max(nchar)
+            words <- sum(sapply(strsplit(testLine, "\\s+"), length))
+            close(con)
+            return(c(fileIn, format(round(fsize, 2), nsmall=2), length(testLine), maxchars, words))
+      })
+      saveRDS(l, file = "./data/sample/summaryDF.RData")
+}
+
+l <- readRDS(file = "./data/sample/summaryDF.RData")
+summaryDF <- data.frame(matrix(unlist(l), nrow=length(l), byrow=T))
+colnames(summaryDF) <- c("file", "MBs", "#lines", "longestLine", "#words")
+summaryDF
+```
+
+## Create Random Samples
+Given the size of these files initial attempts at processing the data failed. I've
+found that a 5% random sample appears to provide the necessary uniqueness of data
+we had hoped for, will minimizing the file size to provide better performance of
+our R scripts.
+
+```{r}
+# Pull 5% random lines from original data source
+if (!file.exists("data/sample/sampleCorpus.txt")){
+      set.seed(234)
+      blogFile <- file(paste(dir, enFiles, sep="/")[1], open="r")
+      blog_lines <- readLines(blogFile, skipNul=TRUE)
+      num_blog_lines <- length(blog_lines)
+      blog_sample <- blog_lines[sample(1:num_blog_lines, num_blog_lines * 0.05, replace=FALSE)]
+      con2 <- file("data/sample/sampleCorpus.txt", "w+")
+      writeLines(blog_sample, con2)
+      close(con2)
+      close(blogFile)
+      
+      newsFile <- file(paste(dir, enFiles, sep="/")[2], open="r")
+      news_lines <- readLines(newsFile, skipNul = TRUE)
+      num_news_lines <- length(news_lines)
+      news_sample <- news_lines[sample(1:num_news_lines, num_news_lines * 0.05, replace=FALSE)]
+      con2 <- file("data/sample/sampleCorpus.txt", "w+")
+      writeLines(news_sample, con2)
+      close(newsFile)
+      close(con2)
+      
+      twitterFile <- file(paste(dir, enFiles, sep="/")[3], open="r")
+      twit_lines <- readLines(twitterFile, skipNul=TRUE)
+      num_twit_lines <- length(twit_lines)
+      twit_sample <- twit_lines[sample(1:num_twit_lines, num_twit_lines * 0.05, replace=FALSE)]
+      con2 <- file("data/sample/sampleCorpus.txt", "w+")
+      writeLines(twit_sample, con2)
+      close(con2)
+      close(twitterFile)
+}
+```
+
+##Data Pre-processing
+Given that our purpose is to evaluate common unigram, bigram and trigram word 
+combinations, once we have good random samples, we'll want to pre-process each to 
+remove unwanted text. This step will remove punctuation, numbers, whitespace, 
+profanity and standardize the text to lower case.
+
+```{r}
+docCon <- file("./data/sample/sampleCorpus.txt")
+docs <- readLines(docCon)  
+docs <- Corpus(VectorSource(docs))
+docs <- tm_map(docs, removePunctuation)  
+docs <- tm_map(docs, removeNumbers)
+docs <- tm_map(docs, tolower)
+#docs <- tm_map(docs, removeWords, stopwords("english")) #removes common words 
+docs <- tm_map(docs, stemDocument)  #removes word endings (ing, es, s, etc)
+docs <- tm_map(docs, stripWhitespace) 
+profanity_vector <- readLines("data/profanity_filter.txt")
+docs <- tm_map(docs, removeWords, profanity_vector) 
+```
+
+## Create ngram tokenizers
+Finally, it's time to create our ngrams using the Weka tokenizer. From these ngrams
+we will sort by the frequency of occurance and examine the top 30 unigram, bigram,
+and trigrams.
+
+```{r}
+ngramFiles <- c("./data/uniSample.RData","./data/biSample.RData","./data/triSample.RData")
+if (!file.exists(ngramFiles[1]) && !file.exists(ngramFiles[2]) && !file.exists(ngramFiles[3])){
+      Unigram <- NGramTokenizer(docs, Weka_control(min = 1, max = 1,delimiters = " \\r\\n\\t.,;:\"()?!"))
+      Bigram <- NGramTokenizer(docs, Weka_control(min = 2, max = 2,delimiters = " \\r\\n\\t.,;:\"()?!"))
+      Trigram <- NGramTokenizer(docs, Weka_control(min = 3, max = 3,delimiters = " \\r\\n\\t.,;:\"()?!"))
+      
+      #sort by word distribution frequency
+      UnigramTbl <- data.frame(table(Unigram))
+      UnigramTbl <- UnigramTbl[order(UnigramTbl$Freq,decreasing = TRUE),]
+      UniSample <- UnigramTbl[1:30,]
+      colnames(UniSample) <- c("nGram","Frequency")
+      BigramTbl <- data.frame(table(Bigram))
+      BigramTbl <- BigramTbl[order(BigramTbl$Freq,decreasing = TRUE),]
+      BiSample <- BigramTbl[1:30,]
+      colnames(BiSample) <- c("nGram","Frequency")
+      TrigramTbl <- data.frame(table(Trigram))
+      TrigramTbl <- TrigramTbl[order(TrigramTbl$Freq,decreasing = TRUE),]
+      TriSample <- TrigramTbl[1:30,]
+      colnames(TriSample) <- c("nGram","Frequency")
+      
+      #save files
+      saveRDS(UniSample, file = "./data/uniSample.RData")
+      saveRDS(BiSample, file = "./data/biSample.RData")
+      saveRDS(TriSample, file = "./data/triSample.RData")
+      remove(UnigramTbl,UniSample,BigramTbl,BiSample,TrigramTbl,TriSample)
+}
+```
+
+## Data Analysis
+Let's now plot these ngrams.
+
+```{r}
+UniSample <- readRDS(file = "./data/uniSample.RData")
+BiSample <- readRDS(file = "./data/biSample.RData")
+TriSample <- readRDS(file = "./data/triSample.RData")
+
+ggplot(UniSample, aes(x=reorder(nGram,Frequency),y=Frequency)) + geom_bar(stat="Identity", fill="#0044FF") +
+      geom_text(aes(label=Frequency)) + 
+      labs(title="Top 30 Unigrams",x='nGram (word/s)',y='Frequency') +
+      coord_flip() 
+
+ggplot(BiSample, aes(x=reorder(nGram,Frequency),y=Frequency)) + geom_bar(stat="Identity", fill="#0044FF") +
+      geom_text(aes(label=Frequency)) +
+      labs(title="Top 30 Bigrams",x='nGram (word/s)',y='Frequency') +
+      coord_flip() 
+
+ggplot(TriSample, aes(x=reorder(nGram,Frequency),y=Frequency)) + geom_bar(stat="Identity", fill="#0044FF") +
+      geom_text(aes(label=Frequency)) + 
+      labs(title="Top 30 Trigrams",x='nGram (word/s)',y='Frequency') +
+      coord_flip() 
+```
+
+## Conclusion
+Natural language processing is often a computer resource intensive process. Several
+attempts at obtaining random samples from our data sources was necessary to find a
+level that provided enough unique ngrams, while keeping the file sizes at a minimum. 
+
+I also found that for our purposes common techniques like removing stem words are
+questionable as to their use in our application. I also question the use unigrams
+at predicting the next word. Perhaps their best use may be in suggesting the next
+word only when there is no other valid prediction.
