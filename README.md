@@ -1,7 +1,8 @@
-# This is the final "capstone" project for the  Data Science specialization offered
+# Data Science Capstone Project
+
+This is the final "capstone" project for the  Data Science specialization offered
 by Johns Hopkins University through the Coursera website.
 
-Data Science Capstone Project
 
 Importan Files:
   User Interface - ui.R
