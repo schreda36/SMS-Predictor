@@ -1,0 +1,99 @@
+Data Science Capstone Project
+========================================================
+author: Dan Schreck
+date:  August 27th, 2016
+transition: fade
+autosize: true
+transition-speed: slow
+
+
+
+
+Phrase Predictor
+========================================================
+incremental: true
+</br>
+An application for prediction of the next possible words in a sentence. This shiny 
+app has the following properties:
+
+<ol style="font-size:22pt; line-height:22px;">
+<li> User may enter text in an input box
+<li> Application returns the top 5 next possible words
+<li> Utilizes a small and fast sample of news articles, blog and twitter posts
+<li> Compares text input to the tokenized frequency of 1, 2, 3, and 4-gram sequences 
+</ol>
+
+</br></br>
+
+<blockquote style="font-family:Arial,sans-serif; font-size:18pt">
+This is the final "capstone" project for the  Data Science specialization offered
+by Johns Hopkins University through the Coursera website.
+</blockquote>
+
+
+
+Methodology
+========================================================
+incremental: true
+</br>
+Pre-processing of Data was performed:
+<ul style="font-size:22pt; line-height:22px;">
+<li> 5% random sample of corpus was found to be adequate for accuracy and performance
+<li> Sample text was scrubbed, then tokenized
+<li> RData files were created throughout pre-processing for a more modular approach
+</ul>
+
+Shiny App:
+<ul style="font-size:22pt; line-height:22px;">
+<li> UI inputs and outputs were minimized for a clean and fast response
+<li> User input text is also scrubbed before matching to ngram files
+<li> The last 3 words of the user input is used for pattern matching to ngram files
+<li> 4-gram is searched first, followed by 3-gram, then 2-gram. If a next word is not
+found or if a new sentence is started the top 5 results of the 1-gram file is used.
+</ul>
+
+Data
+========================================================
+</br>
+The corpus was provided by courtesy of SwiftKey. It consists of news articles, blog 
+and twitter posts in several languages. Data exploration showed a number of unwanted 
+data (profanity, punctuation, etc.). This app utilizes a 5% random sample of the 
+English data, prior to removing unwanted data. Then 1, 2, 3 and 4-gram tokens were 
+created, sorted by frequency, and stored in separate files. Here's a sample of 4-gram data:
+
+![Shiny App - Phrase Predictor](./phrase_predictor_data.png)
+
+
+
+User Interface
+========================================================
+</br>
+The ui of the Phrase Predictor is decidedly clean and simple - one text box and 
+a  list of the top 5 words as determine by the algorithm. With no buttons to push
+the user simply enters text and our Phrase Predictor displays a the top 5 words in 
+bright red text.
+
+![Shiny App - Phrase Predictor](./phrase_predictor1.png)
+
+
+
+
+
+Links to Shiny App and Code
+========================================================
+</br>
+<script type="text/javascript">
+function improvements() {
+  return "Potential improvements include:\n\n"+
+  "· Use of other machine learning techniques.\n\n"+
+  "· Retrain model using a larger, more varied corpus.\n\n" + 
+  "· Inclusion of a spell-checker or auto-complete words as they are typed.";
+}
+</script>
+
+- <a href="http://github.com/schreda36/capstone" target="_blank">__GitHub__ repository for the Phrase Predictor app code</a>
+
+- <a href="https://schreda.shinyapps.io/CAPSTONE/" target="_blank">Link to __Shiny App__</a>&nbsp; &larr; &nbsp;
+*_Try it now!_*
+
+- <a href="javascript:alert(improvements())">Potential improvements</a>...
